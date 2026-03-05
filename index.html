@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我们的秘密基地</title>
+    <style>
+        :root { --main-color: #ffb6c1; --bg-color: #fff5f6; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color); margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* 登录遮罩 */
+        #login-overlay { position: fixed; inset: 0; background: var(--main-color); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; transition: 0.5s; }
+        #login-overlay.hidden { opacity: 0; pointer-events: none; }
+        
+        /* 聊天头部 */
+        header { background: #fff; padding: 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); font-weight: bold; color: #d63384; }
+        
+        /* 留言列表 */
+        #chat-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 10px; border-radius: 15px; position: relative; font-size: 14px; line-height: 1.5; }
+        .msg.me { align-self: flex-end; background: #ffccd5; border-bottom-right-radius: 2px; }
+        .msg.her { align-self: flex-start; background: #fff; border-bottom-left-radius: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .info { font-size: 10px; color: #999; margin-top: 5px; display: block; }
+
+        /* 输入框 */
+        footer { background: #fff; padding: 10px; display: flex; gap: 10px; border-top: 1px solid #eee; }
+        input { flex: 1; border: 1px solid #ddd; padding: 10px; border-radius: 20px; outline: none; }
+        button { background: var(--main-color); border: none; color: white; padding: 0 20px; border-radius: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <h2 style="color: white;">❤️ 输入暗号进入</h2>
+        <input type="password" id="pass-input" placeholder="我们的纪念日？" style="flex:none; width:200px; margin-bottom:10px;">
+        <button onclick="checkPass()" style="height:40px;">验证</button>
+    </div>
+
+    <header>💕 我们的留言板</header>
+    
+    <div id="chat-box"></div>
+
+    <footer>
+        <input type="text" id="msg-input" placeholder="写点什么给对方...">
+        <button onclick="sendMsg()">发送</button>
+    </footer>
+
+    <script>
+        // --- 请在此处填写你的信息 ---
+        const PASS = "123456"; // 这里设置你的进入密码
+        const ROOM_ID = "ourlove2025"; // 你们的专属房间号
+        // ---------------------------
+
+        let currentUser = "";
+
+        // 验证密码
+        function checkPass() {
+            const input = document.getElementById('pass-input').value;
+            if(input === PASS) {
+                document.getElementById('login-overlay').classList.add('hidden');
+                // 简单区分身份，你可以根据需求改
+                currentUser = confirm("你是男生吗？") ? "男生" : "女生";
+                loadMessages();
+            } else {
+                alert("暗号不对哦！");
+            }
+        }
+
+        // 加载历史记录
+        async function loadMessages() {
+            try {
+                const response = await fetch(`https://api.upoint.io/json/${ROOM_ID}`);
+                const data = await response.json();
+                const arr = Array.isArray(data) ? data : [];
+                
+                const box = document.getElementById('chat-box');
+                box.innerHTML = arr.map(m => `
+                    <div class="msg ${m.sender === currentUser ? 'me' : 'her'}">
+                        ${m.content}
+                        <span class="info">${m.sender} · ${new Date(m.created_at).toLocaleString()}</span>
+                    </div>
+                `).join('');
+                box.scrollTop = box.scrollHeight;
+            } catch (e) {
+                console.error("加载失败", e);
+            }
+        }
+
+        // 发送留言
+        async function sendMsg() {
+            const input = document.getElementById('msg-input');
+            if(!input.value) return;
+
+            const newMsg = {
+                content: input.value,
+                sender: currentUser,
+                created_at: new Date().toISOString()
+            };
+
+            try {
+                // 先获取现有留言
+                const response = await fetch(`https://api.upoint.io/json/${ROOM_ID}`);
+                const data = await response.json();
+                const arr = Array.isArray(data) ? data : [];
+                
+                // 添加新留言并更新
+                arr.push(newMsg);
+                await fetch(`https://api.upoint.io/json/${ROOM_ID}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(arr)
+                });
+
+                input.value = '';
+                loadMessages();
+            } catch (e) {
+                alert("发送失败，请重试");
+                console.error(e);
+            }
+        }
+
+        // 每10秒自动刷新一次
+        setInterval(loadMessages, 10000);
+    </script>
+</body>
+</html>
